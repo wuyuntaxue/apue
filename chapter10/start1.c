@@ -5,6 +5,8 @@
  * sigaction 检查/修改指定信号相关联的动作（如果可以应该优先于signal函数使用）
  * sigsetjmp & siglongjmp 提供了可选的保存/恢复信号屏蔽字的函数外跳转
  * sigsuspend(sigmask) 设置信号屏蔽字为sigmask，然后阻塞进程，在捕获到信号并从处理程序返回后，该函数也返回，并将屏蔽字设置为调用前的值
+ * abort()
+ * strsignal()  返回信号的字符串描述
 ***********/
 #include <stdio.h>
 #include <signal.h>
@@ -105,6 +107,34 @@ void sig_int_handler(int signo){
 }
 
 
+/*************************************/
+//打印进程的当前信号屏蔽字
+#include <errno.h>
+void pr_mask(const char * str){
+    sigset_t sigset;
+    int errnoSave;
+
+    errnoSave = errno;
+    if( sigprocmask( 0, NULL, &sigset) < 0 ){  //读取当前信号屏蔽字
+        printf("get sig mask error\n");
+    }else{
+        printf("%s: ",str);
+        if( sigismember(&sigset, SIGINT) ){
+            printf("SIGINT ");
+        }
+        if( sigismember(&sigset, SIGQUIT) ){
+            printf("SIGQUIT ");
+        }
+        if( sigismember(&sigset, SIGUSR1) ){
+            printf("SIGUSR1 ");
+        }
+        if( sigismember(&sigset, SIGALRM) ){
+            printf("SIGALRM ");
+        }
+        printf("\n");
+    }
+}
+
 //siglongjmp sigsetjmp可选择保存恢复屏蔽字
 #include <setjmp.h>
 #include <time.h>
@@ -120,6 +150,7 @@ void sig_usr1_handler(int signo){
     }
 
     //触发USR1信号，这时信号屏蔽字为SIG_USR1
+    pr_mask("before alarm");
 
     alarm(3);
     starttime = time(NULL);
@@ -127,6 +158,7 @@ void sig_usr1_handler(int signo){
     while( time(NULL) < starttime + 5);  //5s
 
     //ALRM信号处理结束，这时信号屏蔽字依然为SIG_USR1
+    pr_mask("after alarm");
 
     canjump = 0;
     siglongjmp(jmpbuf, 1);
@@ -135,6 +167,7 @@ void sig_usr1_handler(int signo){
 
 void sig_alrm_handler(int signo){
     printf("received SIGALRM\n");
+    pr_mask("in alrm handler");
     //在USR1还未退出的时候触发的SIGALRM信号，这时信号屏蔽字为 SIGUSR1 | SIGALRM
 }
 
@@ -150,6 +183,7 @@ void test_sigjmp(){
     //如果第二个参数非0，则保存当前屏蔽字，跳转时恢复
     if( sigsetjmp(jmpbuf, 1) ){  //直接调用返回0，从siglongjmp跳转返回非0
         printf("jmp here\n");
+        pr_mask("end");
         _exit(0);
     }
     canjump = 1;
@@ -158,11 +192,20 @@ void test_sigjmp(){
         pause();
 }
 
+/******************************/
+#include <stdlib.h>
+void test_abort(){
+    //将SIGABRT发送给调用进程、进程不应该忽略此信号
+    abort();  //使程序异常终止
+}
+
+#include <string.h>  //strsignal()
+
 int main(){
+    printf("%s\n",strsignal(SIGALRM));
+    printf("%s\n",strsignal(SIGINT));
+
     test_sigjmp();
     
-    //pause();  //阻塞进程
-
-
-    //sigaction()
+    //pause();  //阻塞进程，直到收到信号
 }
