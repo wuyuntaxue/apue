@@ -1,0 +1,9 @@
+#!/usr/bin/awk -f
+# Note: on Solaris, use nawk instead
+# 解释器文件，打印程序名，和传入的命令行参数
+# 如果放在/usr/local/bin/目录下，可以直接类似应用程序执行（例如：$awkexample 1 2 3），而不用加路径
+BEGIN {
+    for (i = 0; i < ARGC; i++)
+        printf "ARGC[%d] = %s\n", i, ARGV[i]
+    exit
+}
